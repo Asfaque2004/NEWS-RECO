@@ -25,4 +25,4 @@ def get_news():
 if __name__ == '__main__':
     app.run(debug=True)
 
-hi nigg
+hi asfaque, I have updated the code. Please check it out. — Ankit Kumar Jun 29, 2020 at 06:45
