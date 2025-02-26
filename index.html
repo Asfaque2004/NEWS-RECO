@@ -3,42 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test NewsAPI</title>
+    <title>News Summarization</title>
+    <script>
+        async function fetchNews() {
+            const response = await fetch("http://127.0.0.1:5000/news");
+            const newsArticles = await response.json();
+            const newsContainer = document.getElementById("news");
+
+            newsContainer.innerHTML = ""; // Clear existing articles
+
+            newsArticles.forEach((article, index) => {
+                let articleDiv = document.createElement("div");
+                articleDiv.classList.add("article");
+
+                let title = document.createElement("h3");
+                title.textContent = article.title;
+
+                let description = document.createElement("p");
+                description.textContent = article.description || "No description available.";
+
+                let summarizeButton = document.createElement("button");
+                summarizeButton.textContent = "Summarize";
+                summarizeButton.onclick = async function() {
+                    await fetchSummary(article.content || article.description, index);
+                };
+
+                let summaryDiv = document.createElement("p");
+                summaryDiv.classList.add("summary");
+                summaryDiv.id = `summary-${index}`;
+
+                articleDiv.appendChild(title);
+                articleDiv.appendChild(description);
+                articleDiv.appendChild(summarizeButton);
+                articleDiv.appendChild(summaryDiv);
+
+                newsContainer.appendChild(articleDiv);
+            });
+        }
+
+        async function fetchSummary(content, index) {
+            const response = await fetch("http://127.0.0.1:5000/summarize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: content })
+            });
+
+            const data = await response.json();
+            document.getElementById(`summary-${index}`).textContent = data.summary || "Error summarizing article.";
+        }
+
+        window.onload = fetchNews;
+    </script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        input, button { padding: 10px; margin: 10px; }
-        #results { margin-top: 20px; text-align: left; max-width: 600px; margin: auto; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .article {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .summary {
+            color: blue;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
-    <h1>Test NewsAPI Fetch</h1>
-    <input type="text" id="query" placeholder="Enter a topic (e.g., technology)">
-    <button onclick="fetchNews()">Get News</button>
-    
-    <div id="results"></div>
-
-    <script>
-        function fetchNews() {
-            let query = document.getElementById("query").value || "technology";
-            let apiKey = "2ef6cd7491c64dbc9ad1675b79e02302";  // Replace with your API key
-            let url = `https://newsapi.org/v2/everything?q=${query}&apiKey=${apiKey}&language=en&sortBy=publishedAt`;
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === "error") {
-                        document.getElementById("results").innerHTML = `<p style="color:red;">Error: ${data.message}</p>`;
-                        return;
-                    }
-                    
-                    let output = "<h2>News Results:</h2>";
-                    data.articles.forEach(article => {
-                        output += `<p><strong>${article.title}</strong><br>${article.description || "No description available."}</p><hr>`;
-                    });
-                    document.getElementById("results").innerHTML = output;
-                })
-                .catch(error => console.log("Error fetching news:", error));
-        }
-    </script>
+    <h1>News Summarization</h1>
+    <div id="news">Loading news...</div>
 </body>
 </html>
