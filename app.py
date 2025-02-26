@@ -47,6 +47,19 @@ def log_user_activity(user_id, article_title, category):
     with open(CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([user_id, article_title, category])
+        
+def search_news(query):
+    url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}"
+    response = requests.get(url)
+    return response.json().get("articles", [])
+
+@app.route("/search", methods=["GET"])
+def fetch_search_results():
+    query = request.args.get("query")
+    if not query:
+        return jsonify({"error": "Query parameter is required"}), 400
+    news_articles = search_news(query)
+    return jsonify(news_articles)
 
 @app.route("/news", methods=["GET"])
 def fetch_news():
