@@ -48,6 +48,39 @@ def log_user_activity(user_id, article_title, category):
         writer = csv.writer(f)
         writer.writerow([user_id, article_title, category])
         
+def get_user_preferences(user_id):
+    """Analyze user activity and find the most-read categories"""
+    if not os.path.exists(CSV_FILE):
+        return []
+
+    df = pd.read_csv(CSV_FILE)
+    user_data = df[df["user_id"] == user_id]
+
+    if user_data.empty:
+        return []  # No data for this user
+
+    category_counts = user_data["category"].value_counts()
+    top_categories = category_counts.index.tolist()[:3]  # Get top 3 categories
+
+    return top_categories
+@app.route("/recommendations", methods=["GET"])
+def fetch_recommendations():
+    user_id = request.args.get("user_id")
+
+    if not user_id:
+        return jsonify({"error": "User ID is required"}), 400
+
+    preferred_categories = get_user_preferences(user_id)
+
+    if not preferred_categories:
+        return jsonify({"message": "No user data found. Showing general news."}), 200
+
+    recommended_articles = []
+    for category in preferred_categories:
+        recommended_articles.extend(get_news(category)[:3])  # Fetch top 3 articles per category
+
+    return jsonify(recommended_articles)
+
 def search_news(query):
     url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}"
     response = requests.get(url)
