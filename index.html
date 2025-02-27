@@ -5,17 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>News Summarization</title>
     <script>
-        async function fetchRecommendations() {
-            const response = await fetch("http://127.0.0.1:5000/recommendations");
-            const data = await response.json();
-            
-            if (!Array.isArray(data)) {
-                console.error("Invalid response format:", data);
-                return;
-            }
-        
-            displayNews(data, 1, "recommended-news"); 
-        }
+    async function fetchRecommendations() {
+        const userId = "user_123";  // Replace with actual user ID
+        const response = await fetch(`http://127.0.0.1:5000/recommend?user_id=${userId}`);
+        const data = await response.json();
+    
+        console.log("Recommended Articles:", data.recommendations);
+    }
+    
         let page = 1; // Track current page number
         let searchMode = false; // Track whether search is active
 
@@ -74,8 +71,14 @@
                 let summarizeButton = document.createElement("button");
                 summarizeButton.textContent = "Summarize";
                 summarizeButton.onclick = async function() {
-                    await fetchSummary(article.content || article.description, index);
-                };
+    await fetchSummary(
+        article.content || article.description, 
+        index, 
+        article.title, 
+        article.category || "Unknown"
+    );
+};
+
 
                 let summaryDiv = document.createElement("p");
                 summaryDiv.classList.add("summary");
@@ -92,16 +95,25 @@
             });
         }
 
-        async function fetchSummary(content, index) {
-            const response = await fetch("http://127.0.0.1:5000/summarize", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ content: content })
-            });
+        async function fetchSummary(content, index, title, category) {
+    const userId = "user123"; // Replace with an actual user ID if needed
 
-            const data = await response.json();
-            document.getElementById(`summary-${index}`).textContent = data.summary || "Error summarizing article.";
-        }
+    const response = await fetch("http://127.0.0.1:5000/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            content: content,
+            user_id: userId,
+            article_title: title,
+            category: category
+        })
+    });
+
+    const data = await response.json();
+    document.getElementById(`summary-${index}`).textContent = data.summary || "Error summarizing article.";
+}
+
+
 
         window.onload = () => fetchNews(); // Load news on page load
     </script>
