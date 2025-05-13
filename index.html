@@ -1,296 +1,551 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>News Summarization</title>
     <script>
-    async function fetchRecommendations() {
-        const userId = "user_123";  // Replace with actual user ID
-        const response = await fetch(`http://127.0.0.1:5000/recommend?user_id=${userId}`);
-        const data = await response.json();
-    
-        console.log("Recommended Articles:", data.recommendations);
-    }
-    
-        let page = 1; // Track current page number
-        let searchMode = false; // Track whether search is active
+        // State management
+        const appState = {
+            page: 1,
+            searchMode: false,
+            userId: "user123"
+        };
 
-        async function loadMoreNews() {
-            page++; 
-            if (searchMode) {
-                await searchNews(page);
-            } else {
-                await fetchNews(page);
-            }
-        }
+        // DOM Elements
+        const elements = {
+            newsContainer: () => document.getElementById("news"),
+            recommendedContainer: () => document.getElementById("recommended-news"),
+            searchInput: () => document.getElementById("searchInput"),
+            summaryModal: () => document.getElementById("summaryModal"),
+            loadingSpinner: () => document.getElementById("loading-spinner"),
+            summaryText: () => document.getElementById("summaryText")
+        };
 
-        async function searchNews(pageNumber = 1) {
-            const query = document.getElementById("searchInput").value.trim();
-            if (!query) {
-                alert("Please enter a search term!");
-                return;
-            }
-            searchMode = true;
-            const response = await fetch(`http://127.0.0.1:5000/search?query=${query}&page=${pageNumber}`);
-            const newsArticles = await response.json();
-            displayNews(newsArticles, pageNumber);
-        }
-
-        async function fetchNews(pageNumber = 1) {
-            searchMode = false;
-            const response = await fetch(`http://127.0.0.1:5000/news?page=${pageNumber}`);
-            const newsArticles = await response.json();
-            displayNews(newsArticles, pageNumber);
-        }
-
-        function displayNews(newsArticles, pageNumber) {
-            const newsContainer = document.getElementById("news");
-
-            if (pageNumber === 1) newsContainer.innerHTML = ""; // Clear only on first fetch
-
-            newsArticles.forEach((article, index) => {
-                let articleDiv = document.createElement("div");
-                articleDiv.classList.add("article");
-
-                let title = document.createElement("h3");
-                title.textContent = article.title;
-
-                let image = document.createElement("img");
-                image.src = article.urlToImage || "https://via.placeholder.com/150";
-                image.alt = "News Image";
-
-                let description = document.createElement("p");
-                description.textContent = article.description || "No description available.";
-
-                let readMore = document.createElement("a");
-                readMore.href = article.url;
-                readMore.target = "_blank";
-                readMore.textContent = "Read Full Article";
-
-                let summarizeButton = document.createElement("button");
-                summarizeButton.textContent = "Summarize";
-                summarizeButton.onclick = async function() {
-    await fetchSummary(
-        article.content || article.description, 
-        index, 
-        article.title, 
-        article.category || "Unknown"
-    );
-};
-
-
-                let summaryDiv = document.createElement("p");
-                summaryDiv.classList.add("summary");
-                summaryDiv.id = `summary-${index}`;
-
-                articleDiv.appendChild(image);
-                articleDiv.appendChild(title);
-                articleDiv.appendChild(description);
-                articleDiv.appendChild(readMore);
-                articleDiv.appendChild(summarizeButton);
-                articleDiv.appendChild(summaryDiv);
-
-                newsContainer.appendChild(articleDiv);
-            });
-        }
-
-        async function fetchSummary(content, index, title, category) {
-    const userId = "user123"; // Replace with an actual user ID if needed
-
-    const response = await fetch("http://127.0.0.1:5000/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            content: content,
-            user_id: userId,
-            article_title: title,
-            category: category
-        })
-    });
-
-    const data = await response.json();
-    document.getElementById(`summary-${index}`).textContent = data.summary || "Error summarizing article.";
+        // API Functions
+        const api = {
+            fetchNews: async (page) => {
+                const response = await fetch(`http://127.0.0.1:5000/news?page=${page}`);
+                return await response.json();
+            },
+            searchNews: async (query, page) => {
+                const response = await fetch(`http://127.0.0.1:5000/search?query=${query}&page=${page}`);
+                return await response.json();
+            },
+            getRecommendations: async (userId) => {
+                const response = await fetch(`http://127.0.0.1:5000/analyze_user_preferences?user_id=${userId}`);
+                return await response.json();
+            },
+            fetchRecommendedNews: async (categories) => {
+                const response = await fetch(`http://127.0.0.1:5000/get_rnews?categories=${categories}`);
+                return await response.json();
+            },
+            summarize: async (content, title, category, userId) => {
+                const model = document.getElementById("model-select").value;
+                const response = await fetch("http://127.0.0.1:5000/summarize", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content, user_id: userId, article_title: title, category, model })
+                });
+                return await response.json();
 }
 
+        };
 
+        // UI Functions
+        const ui = {
+            createArticleElement: (article, index) => {
+    const articleDiv = document.createElement("div");
+    articleDiv.className = "article";
 
-        window.onload = () => fetchNews(); // Load news on page load
+    articleDiv.innerHTML = `
+        <img src="${article.urlToImage || 'https://via.placeholder.com/150'}" alt="News Image">
+        <h3>${article.title}</h3>
+        <p class="description">${article.description || "No description available."}</p>
+        <a href="${article.url}" target="_blank" class="read-more">Read Full Article</a>
+        <button class="summarize-btn" data-index="${index}">Summarize</button>
+    `;
+
+    articleDiv.querySelector('.summarize-btn').onclick = async () => {
+        await actions.fetchAndDisplaySummary(
+            article.content || article.description,
+            article.title,
+            article.category || "Unknown"
+        );
+    };
+
+    return articleDiv;
+},
+            displayArticles: (articles, container, clear = true) => {
+                if (clear) container.innerHTML = "";
+                if (!articles || articles.length === 0) {
+                    container.innerHTML = "<p class='no-articles'>No articles found.</p>";
+                    return;
+                }
+                articles.forEach((article, index) => {
+                    container.appendChild(ui.createArticleElement(article, index));
+                });
+            },
+            showModalWithLoading: () => {
+                const modal = elements.summaryModal();
+                modal.style.display = "block";
+                document.body.style.overflow = "hidden";
+                document.getElementById("news").style.filter = "blur(2px) brightness(0.8)";
+                document.getElementById("recommended-news").style.filter = "blur(2px) brightness(0.8)";
+                elements.loadingSpinner().style.display = "block";
+                elements.summaryText().style.display = "none";
+            },
+            showModalWithSummary: (summary, title) => {
+                elements.loadingSpinner().style.display = "none";
+                elements.summaryText().style.display = "block";
+                elements.summaryText().innerHTML = `
+                    <h2 style="text-align:center; margin-bottom: 10px;">${title}</h2>
+                    <p style="text-align:justify;">${summary || "Summary not available."}</p>
+                `;
+            },
+            closeModal: () => {
+                const modal = elements.summaryModal();
+                modal.style.display = "none";
+                document.body.style.overflow = "auto";
+                document.body.style.filter = "none";
+                document.getElementById("news").style.filter = "none";
+document.getElementById("recommended-news").style.filter = "none";
+
+            },
+            showErrorInModal: () => {
+                elements.loadingSpinner().style.display = "none";
+                elements.summaryText().style.display = "block";
+                elements.summaryText().textContent = "An error occurred while fetching summary.";
+            }
+        };
+
+        // Action Functions
+        const actions = {
+            loadMoreNews: async () => {
+                appState.page++;
+                if (appState.searchMode) {
+                    await actions.searchNews(appState.page);
+                } else {
+                    await actions.fetchNews(appState.page);
+                }
+            },
+            fetchNews: async (page = 1) => {
+                appState.searchMode = false;
+                const news = await api.fetchNews(page);
+                ui.displayArticles(news, elements.newsContainer(), page === 1);
+            },
+            searchNews: async (page = 1) => {
+                const query = elements.searchInput().value.trim();
+                if (!query) {
+                    alert("Please enter a search term!");
+                    return;
+                }
+                appState.searchMode = true;
+                const news = await api.searchNews(query, page);
+                ui.displayArticles(news, elements.newsContainer(), page === 1);
+            },
+            fetchRecommendations: async () => {
+                try {
+                    const preferences = await api.getRecommendations(appState.userId);
+                    if (!preferences.topics?.length) {
+                        console.error("No topics received.");
+                        return;
+                    }
+                    const news = await api.fetchRecommendedNews(encodeURIComponent(preferences.topics.join(",")));
+                    ui.displayArticles(news.articles, elements.recommendedContainer());
+                } catch (error) {
+                    console.error("Error fetching recommendations:", error);
+                }
+            },
+            fetchAndDisplaySummary: async (content, title, category) => {
+    ui.showModalWithLoading();
+
+    try {
+        const data = await api.summarize(content, title, category, appState.userId);
+        ui.showModalWithSummary(data.summary, title);
+    } catch (error) {
+        console.error("Error fetching summary:", error);
+        ui.showErrorInModal();
+    }
+}
+,
+            closeModal: () => {
+                ui.closeModal();
+            }
+        };
+
+        // Initialize
+        window.onload = () => {
+            actions.fetchNews();
+            document.getElementById("searchInput").addEventListener("keypress", (e) => {
+                if (e.key === "Enter") actions.searchNews();
+            });
+        };
     </script>
     <style>
-        #recommended-news {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            padding: 20px;
+        .link{
+            background-color: var(--twitter-light-gray);
+            color: var(--twitter-text);
+            text-decoration: none;
         }
-        
-        #recommended-news .article {
-            background: #fff7e6; /* Light orange background */
-            border: 2px solid #ff9800; /* Orange border */
-            border-radius: 8px;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-            width: 350px;
-            margin: 15px;
-            padding: 15px;
-            text-align: center;
+        :root {
+            --twitter-dark: #15202b;
+            --twitter-blue: #1da1f2;
+            --twitter-light-gray: #253341;
+            --twitter-text: #f7f9f9;
+            --twitter-border: #38444d;
+            --twitter-red: #e0245e;
         }
-        
-        #recommended-news .article h3 {
-            color: #e65100; /* Dark orange text */
-        }
-        
-        #recommended-news .article button {
-            background-color: #ff9800; /* Orange button */
-            color: white;
-            border: none;
-            padding: 10px;
-            width: 100%;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        
-        #recommended-news .article button:hover {
-            background-color: #e65100; /* Darker orange on hover */
-        }
-        
-        /* Recommended Articles Button */
-        #fetch-recommendations {
-            display: block;
-            margin: 20px auto;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #ff9800;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-            font-weight: bold;
-        }
-        
-        #fetch-recommendations:hover {
-            background-color: #e65100;
-        }
+
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Work Sans', 'serif';
             margin: 0;
             padding: 0;
-            background-color: #f4f4f4;
+            background-color: var(--twitter-dark);
+            color: var(--twitter-text);
+            min-height: 100vh;
+            transition: all 0.3s ease;
         }
+
         .header {
-            background-color: #333;
-            color: white;
+            background-color: var(--twitter-light-gray);
+            color: var(--twitter-text);
             text-align: center;
-            padding: 15px;
-            font-size: 24px;
+            padding: 1.5rem;
+            font-size: 1.5rem;
             font-weight: bold;
+            border-bottom: 1px solid var(--twitter-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
+
         .search-container {
             display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding: 15px;
+            justify-content: center;
+            padding: 1rem;
+            background-color: var(--twitter-light-gray);
+            border-bottom: 1px solid var(--twitter-border);
         }
+
         .search-container input {
-            padding: 10px;
-            width: 250px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 0.8rem 1.2rem;
+            width: 60%;
+            max-width: 500px;
+            border: 1px solid var(--twitter-border);
+            border-radius: 2rem;
+            background-color: var(--twitter-dark);
+            color: var(--twitter-text);
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.2s;
         }
+
+        .search-container input:focus {
+            border-color: var(--twitter-blue);
+        }
+
         .search-container button {
-            background-color: #007bff;
+            background-color: var(--twitter-blue);
             color: white;
             border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
+            padding: 0.8rem 1.5rem;
+            border-radius: 2rem;
+            margin-left: 0.5rem;
             cursor: pointer;
-            font-size: 16px;
-            margin-left: 10px;
+            font-weight: bold;
+            transition: background 0.2s;
         }
+
         .search-container button:hover {
-            background-color: #0056b3;
+            background-color: #1991da;
         }
-        #news {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            padding: 20px;
+
+        #news, #recommended-news {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
         }
+
         .article {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-            width: 350px;
-            margin: 15px;
-            padding: 15px;
-            text-align: center;
+            background-color: var(--twitter-light-gray);
+            border-radius: 1rem;
+            padding: 1.2rem;
+            border: 1px solid var(--twitter-border);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
+
+        .article:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
         .article img {
             width: 100%;
-            height: auto;
-            border-radius: 8px;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 0.8rem;
+            margin-bottom: 1rem;
         }
+
         .article h3 {
-            font-size: 18px;
-            margin: 10px 0;
+            margin: 0 0 0.8rem 0;
+            font-size: 1.1rem;
+            color: var(--twitter-text);
         }
-        .article p {
-            font-size: 14px;
-            color: #555;
+
+        .article .description {
+            font-size: 0.9rem;
+            color: #8899a6;
+            margin-bottom: 1rem;
         }
-        .article a {
-            display: block;
-            margin-top: 10px;
+
+        .article .read-more {
+            display: inline-block;
+            color: var(--twitter-blue);
             text-decoration: none;
-            color: #007bff;
-            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 0.8rem;
         }
-        .article button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px;
+
+        .article .summarize-btn {
             width: 100%;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        .article button:hover {
-            background-color: #0056b3;
-        }
-        .summary {
-            margin-top: 10px;
-            font-style: italic;
-            color: #333;
-            font-weight: bold;
-        }
-        #load-more {
-            display: block;
-            margin: 20px auto;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #28a745;
+            padding: 0.6rem;
+            background-color: var(--twitter-red);
             color: white;
             border: none;
+            border-radius: 0.5rem;
             cursor: pointer;
-            border-radius: 5px;
+            font-weight: bold;
+            transition: background 0.2s;
+            align-items:flex-end;
         }
-        #load-more:hover {
-            background-color: #218838;
+
+        .article .summarize-btn:hover {
+            background-color: #c81a4e;
+        }
+
+        .article .summary {
+            margin-top: 0.8rem;
+            font-size: 0.85rem;
+            color: #8899a6;
+            display: none;
+        }
+
+        #fetch-recommendations, #load-more {
+            display: block;
+            margin: 1.5rem auto;
+            padding: 0.8rem 1.5rem;
+            background-color: var(--twitter-blue);
+            color: white;
+            border: none;
+            border-radius: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #fetch-recommendations:hover, #load-more:hover {
+            background-color: #1991da;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: var(--twitter-light-gray);
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 80%;
+            max-width: 600px;
+            border: 1px solid var(--twitter-border);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            position: relative;
+            animation: modalFadeIn 0.3s;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .close-button {
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            color: #8899a6;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-button:hover {
+            color: var(--twitter-text);
+        }
+
+        #loading-spinner {
+            text-align: center;
+            padding: 2rem 0;
+            display: none;
+        }
+
+        #loading-spinner img {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 1rem;
+        }
+
+        #loading-spinner p {
+            margin-top: 0.5rem;
+            color: #8899a6;
+            font-style: italic;
+        }
+
+        #summaryText {
+            color: var(--twitter-text);
+            line-height: 1.6;
+            display: none;
+        }
+
+        #summaryText h2 {
+            color: var(--twitter-text);
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 1.4rem;
+        }
+
+        #summaryText p {
+            font-size: 1rem;
+            text-align: justify;
+            padding: 0 1rem;
+        }
+
+        .no-articles {
+            text-align: center;
+            color: #8899a6;
+            grid-column: 1 / -1;
+            padding: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            #news, #recommended-news {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .search-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .search-container input {
+                width: 90%;
+                margin-bottom: 0.5rem;
+            }
+            
+            .modal-content {
+                width: 90%;
+                margin: 20% auto;
+                padding: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="header">📰 News Summarization App</div>
+    
+    <div class="header"><a class="link" href="http://127.0.0.1:5000/">Headline Hub</div></a>
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="Search news...">
-        <button onclick="searchNews()">Search</button>
-    </div>
-    <button id="fetch-recommendations" onclick="fetchRecommendations()">🔥 Show Recommended Articles</button>
-<div id="recommended-news"></div>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search news..."
+          style="margin-bottom: 0.5rem;"
+        />
+        <button onclick="actions.searchNews()">Search</button>
+      </div>
+      <div
+      style="
+        background-color: #0d1117;
+        padding: 1rem;
+        color: white;
+        font-family: sans-serif;
+        border-radius: 8px;
+        max-width: 400px;
+        margin: 1rem auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      "
+    >
+    
+          <label
+            for="model-select"
+            style="display: block; margin-bottom: 0.5rem; font-weight: bold;"
+          >
+            Choose Summarization Model:
+          </label>
+          <select
+            id="model-select"
+            name="model"
+            style="
+              width: 100%;
+              padding: 0.5rem;
+              background-color: #1a2a4f;
+              color: white;
+              border: 1px solid #2c3e50;
+              border-radius: 6px;
+            "
+          >
+            <option value="tinyllama">TinyLLaMA 🐑 – Fastest, basic summaries</option>
+            <option value="phi:2.7b">Phi 2.7B 🧠 – Balanced and general-purpose</option>
+            <option value="deepseek-r1:1.5b">
+              DeepSeek Coder 1.5B 🧬 – More detailed, great for complex articles
+            </option>
+          </select>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #9db2d6;">
+            💡 Tip: For best balance between speed and quality, try
+            <strong>Phi 2.7B</strong>.
+          </p>
+        </div>
+      </div>
+      
+    <button id="fetch-recommendations" onclick="actions.fetchRecommendations()">🔥 Recommended For You</button>
+    <div id="recommended-news"></div>
+    
     <div id="news">Loading news...</div>
-    <button id="load-more" onclick="loadMoreNews()">Load More</button>
+    <button id="load-more" onclick="actions.loadMoreNews()">Load More</button>
+
+    <!-- Summary Modal -->
+    <div id="summaryModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="actions.closeModal()">&times;</span>
+            <div id="loading-spinner">
+                <img src="https://i.gifer.com/ZZ5H.gif" alt="Loading...">
+                <p>Summarizing, please wait...</p>
+            </div>
+            <div id="summaryText"></div>
+        </div>
+    </div>
 </body>
 </html>
